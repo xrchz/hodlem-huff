@@ -1,4 +1,5 @@
-# Hodlem: Texas Hold'em Sit-n-Go Poker Tournaments for Ethereum
+# Pokerdec
+## Texas Hodl'em Sit-n-Go Poker Tournaments for Ethereum
 
 The game is fully decentralised. Players come together to play a tournament
 entirely via submitting transactions on chain.
