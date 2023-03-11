@@ -18,76 +18,108 @@
 // challengeRes: bytes32[players]
 // challengeRnd: uint256
 // cards: DrawCard[cards]
-// prep -- TODO: use calldata only for this
+// prepped: uint256
 #define constant NEXT_ID = FREE_STORAGE_POINTER()
+#define constant ADDRS_OFFSET = 0x3
 
-/* Methods */
+#define macro GET_DEALER_PTR() = takes (0) returns (1) {
+                      // assumes deckId is in memory at 0x00
+                      // and memory 0x20 is free
+                      // [] ; [id]
+  [DECKS]             // [decks_ptr]
+  0x20 mstore         // [] ; [id, decks_ptr]
+  0x40 0x00 sha3      // [dealer_ptr]
+}
+
+#define macro UNAUTHORISED() = {
+  __ERROR(Unauthorised)       // [unauthorised]
+  0x00 mstore                 // [] ; [unauthorised]
+  0x04 0x00 revert
+}
+
 #define macro NEW_DECK() = {
-    0x04 calldataload   // [cards]
-    0x0 eq              // [0 == cards]
-    error jumpi         // []
-    0x04 calldataload   // [cards]
-    [MAX_CARDS]         // [max_cards, cards]
-    gt 0x1 sub          // [max_cards <= cards]
-    error jumpi         // []
-    0x24 calldataload   // [players]
-    0x0 eq              // [0 == players]
-    error jumpi         // []
-    0x24 calldataload   // [players]
-    [MAX_PLAYERS]       // [max_players, players]
-    lt                  // [max_players < players]
-    error jumpi         // []
-    [NEXT_ID] sload     // [id]
-    0x00 mstore         // [] ; [id]
-    [DECKS]             // [decks_ptr]
-    0x20 mstore         // [] ; [id, decks_ptr]
-    0x40 0x00 sha3      // [dealer_ptr]
-    caller dup2         // [dealer_ptr, caller, dealer_ptr]
-    sstore              // [dealer_ptr] ; [id, decks_ptr; dealer_ptr: caller]
-    0x1 add             // [cards_ptr]
-    0x04 calldataload   // [cards, cards_ptr]
-    dup2                // [cards_ptr, cards, cards_ptr]
-    sstore              // [cards_ptr] ; [id, decks_ptr; dealer_ptr: caller, cards_ptr: cards]
-    0x1 add             // [players_ptr]
-    0x24 calldataload   // [players, players_ptr]
-    dup2 sstore         // [players_ptr] ; [id, decks_ptr; dealer_ptr: caller, cards_ptr: cards, players_ptr: players]
-    0x24 calldataload   // [players, players_ptr]
-    swap1               // [players_ptr, players]
-    loop_players:
-    0x1 add             // [addrs_ptr+i, players-i]
-    caller dup2         // [addrs_ptr+i, caller, addrs_ptr+i, players-i]
-    sstore              // [addrs_ptr+i, players-i] ; [... ; ..., addrs[...i] = caller]
-    0x1 dup3 sub        // [players-i-1, addrs_ptr+i, players-i]
-    swap2               // [players-i, addrs_ptr+i, players-i-1]
-    pop dup2            // [players-i-1, addrs_ptr+i, players-i-1]
-    loop_players jumpi  // [shuffle_ptr, 0]
-    0x00 mload 0x1 add  // [id+1, shuffle_ptr, 0]
-    [NEXT_ID] sstore    // [shuffle_ptr, 0] ; [... ; ..., NEXT_ID = id+1]
-    0x20 0x00 return
-    error:
-    __ERROR(InvalidArgument)
-    0x00 mstore
-    0x04 0x00 revert
+  0x04 calldataload   // [cards]
+  0x0 eq              // [0 == cards]
+  error jumpi         // []
+  0x04 calldataload   // [cards]
+  [MAX_CARDS]         // [max_cards, cards]
+  gt 0x1 sub          // [max_cards <= cards]
+  error jumpi         // []
+  0x24 calldataload   // [players]
+  0x0 eq              // [0 == players]
+  error jumpi         // []
+  0x24 calldataload   // [players]
+  [MAX_PLAYERS]       // [max_players, players]
+  lt                  // [max_players < players]
+  error jumpi         // []
+  [NEXT_ID] sload     // [id]
+  0x00 mstore         // [] ; [id]
+  GET_DEALER_PTR()    // [dealer_ptr]
+  caller dup2         // [dealer_ptr, caller, dealer_ptr]
+  sstore              // [dealer_ptr] ; [id, decks_ptr; dealer_ptr: caller]
+  0x1 add             // [cards_ptr]
+  0x04 calldataload   // [cards, cards_ptr]
+  dup2                // [cards_ptr, cards, cards_ptr]
+  sstore              // [cards_ptr] ; [id, decks_ptr; dealer_ptr: caller, cards_ptr: cards]
+  0x1 add             // [players_ptr]
+  0x24 calldataload   // [players, players_ptr]
+  dup2 sstore         // [players_ptr] ; [id, decks_ptr; dealer_ptr: caller, cards_ptr: cards, players_ptr: players]
+  0x24 calldataload   // [players, players_ptr]
+  swap1               // [players_ptr, players]
+  loop_players:
+  0x1 add             // [addrs_ptr+i, players-i]
+  caller dup2         // [addrs_ptr+i, caller, addrs_ptr+i, players-i]
+  sstore              // [addrs_ptr+i, players-i] ; [... ; ..., addrs[...i] = caller]
+  0x1 dup3 sub        // [players-i-1, addrs_ptr+i, players-i]
+  swap2               // [players-i, addrs_ptr+i, players-i-1]
+  pop dup2            // [players-i-1, addrs_ptr+i, players-i-1]
+  loop_players jumpi  // [shuffle_ptr, 0]
+  0x00 mload 0x1 add  // [id+1, shuffle_ptr, 0]
+  [NEXT_ID] sstore    // [shuffle_ptr, 0] ; [... ; ..., NEXT_ID = id+1]
+  0x20 0x00 return
+  error:
+  __ERROR(InvalidArgument)
+  0x00 mstore
+  0x04 0x00 revert
 }
 
 #define macro CHANGE_DEALER() = {
-    0x00 0x00 revert
+  0x20 0x04 0x00 calldatacopy // [] ; [id]
+  0x24 calldataload           // [new_addr]
+  GET_DEALER_PTR()            // [dealer_ptr, new_addr] ; [id, decks_ptr]
+  dup1 sload                  // [dealer, dealer_ptr, new_addr]
+  caller eq                   // [caller == dealer, dealer_ptr, new_addr]
+  auth jumpi                  // [dealer_ptr, new_addr]
+  UNAUTHORISED()
+  auth:                       // [dealer_ptr, new_addr] ; [id, decks_ptr]
+  sstore                      // [] ; [... ; dealer_ptr = new_addr]
+  0x00 0x00 return
 }
 
 #define macro CHANGE_ADDRESS() = {
-    0x00 0x00 revert
+  0x20 0x04 0x00 calldatacopy // [] ; [id]
+  0x44 calldataload           // [new_addr]
+  GET_DEALER_PTR()            // [dealer_ptr, new_addr]
+  [ADDRS_OFFSET] add          // [addrs_ptr, new_addr]
+  0x24 calldataload           // [player, addrs_ptr, new_addr]
+  add                         // [addrs_ptr + player, new_addr]
+  dup1 sload                  // [addrs[player], addrs_ptr + player, new_addr]
+  caller eq auth jumpi UNAUTHORISED()
+  auth:
+  sstore                      // []
+  0x00 0x00 return
 }
 
 #define macro MAIN() = {
-    0x00 calldataload 0xE0 shr
-    dup1 __FUNC_SIG(newDeck) eq new jumpi
-    dup1 __FUNC_SIG(changeDealer) eq dealer jumpi
-    dup1 __FUNC_SIG(changeAddress) eq chaddr jumpi
-    0x00 0x00 revert
-    new:
-    NEW_DECK()
-    dealer:
-    CHANGE_DEALER()
-    chaddr:
-    CHANGE_ADDRESS()
+  0x00 calldataload 0xE0 shr
+  dup1 __FUNC_SIG(newDeck) eq new jumpi
+  dup1 __FUNC_SIG(changeDealer) eq dealer jumpi
+  dup1 __FUNC_SIG(changeAddress) eq chaddr jumpi
+  0x00 0x00 revert
+  new:
+  NEW_DECK()
+  dealer:
+  CHANGE_DEALER()
+  chaddr:
+  CHANGE_ADDRESS()
 }
