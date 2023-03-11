@@ -22,7 +22,7 @@
 #define constant NEXT_ID = FREE_STORAGE_POINTER()
 
 /* Methods */
-#define macro NEW_DECK() = takes (0) returns (0) {
+#define macro NEW_DECK() = {
     0x04 calldataload   // [cards]
     0x0 eq              // [0 == cards]
     error jumpi         // []
@@ -59,11 +59,10 @@
     sstore              // [addrs_ptr+i, players-i] ; [... ; ..., addrs[...i] = caller]
     0x1 dup3 sub        // [players-i-1, addrs_ptr+i, players-i]
     swap2               // [players-i, addrs_ptr+i, players-i-1]
-    0x1 swap1 sub       // [players-i-1, addrs_ptr+i, players-i-1]
+    pop dup2            // [players-i-1, addrs_ptr+i, players-i-1]
     loop_players jumpi  // [shuffle_ptr, 0]
-    pop pop             // []
-    0x00 mload 0x1 add  // [id+1]
-    [NEXT_ID] sstore    // [] ; [... ; ..., NEXT_ID = id+1]
+    0x00 mload 0x1 add  // [id+1, shuffle_ptr, 0]
+    [NEXT_ID] sstore    // [shuffle_ptr, 0] ; [... ; ..., NEXT_ID = id+1]
     0x20 0x00 return
     error:
     __ERROR(InvalidArgument)
@@ -71,15 +70,15 @@
     0x04 0x00 revert
 }
 
-#define macro CHANGE_DEALER() = takes (0) returns (0) {
+#define macro CHANGE_DEALER() = {
     0x00 0x00 revert
 }
 
-#define macro CHANGE_ADDRESS() = takes (0) returns (0) {
+#define macro CHANGE_ADDRESS() = {
     0x00 0x00 revert
 }
 
-#define macro MAIN() = takes (0) returns (0) {
+#define macro MAIN() = {
     0x00 calldataload 0xE0 shr
     dup1 __FUNC_SIG(newDeck) eq new jumpi
     dup1 __FUNC_SIG(changeDealer) eq dealer jumpi
